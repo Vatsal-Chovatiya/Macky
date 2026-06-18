@@ -22,6 +22,13 @@ vi.mock('uiohook-napi', () => {
   }
 })
 
+vi.mock('electron', () => ({
+  BrowserWindow: vi.fn(),
+  systemPreferences: {
+    isTrustedAccessibilityClient: vi.fn().mockReturnValue(true)
+  }
+}))
+
 describe('setupGlobalHotkey', () => {
   let mockMainWindow: any
 
@@ -33,7 +40,7 @@ describe('setupGlobalHotkey', () => {
       }
     }
 
-    // Reset module-level state of hotkey.ts by triggering keyup events for Ctrl and Alt if callbacks are registered
+    // Reset module-level state by triggering keyup events for tracked keys
     if (mockListeners['keyup']) {
       mockListeners['keyup']({ keycode: UiohookKey.Ctrl })
       mockListeners['keyup']({ keycode: UiohookKey.Alt })
@@ -48,17 +55,41 @@ describe('setupGlobalHotkey', () => {
     expect(uIOhook.start).toHaveBeenCalled()
   })
 
+  it('does NOT trigger ptt-start when only Ctrl is pressed', () => {
+    setupGlobalHotkey(mockMainWindow as BrowserWindow)
+    const keydownCallback = mockListeners['keydown']
+
+    keydownCallback({ keycode: UiohookKey.Ctrl })
+    expect(mockMainWindow.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('does NOT trigger ptt-start when only Alt is pressed', () => {
+    setupGlobalHotkey(mockMainWindow as BrowserWindow)
+    const keydownCallback = mockListeners['keydown']
+
+    keydownCallback({ keycode: UiohookKey.Alt })
+    expect(mockMainWindow.webContents.send).not.toHaveBeenCalled()
+  })
+
   it('triggers ptt-start when both Ctrl and Alt are pressed', () => {
     setupGlobalHotkey(mockMainWindow as BrowserWindow)
     const keydownCallback = mockListeners['keydown']
-    expect(keydownCallback).toBeDefined()
 
-    // Press Ctrl (Cmd on Mac)
     keydownCallback({ keycode: UiohookKey.Ctrl })
     expect(mockMainWindow.webContents.send).not.toHaveBeenCalled()
 
-    // Press Alt (Option on Mac)
     keydownCallback({ keycode: UiohookKey.Alt })
+    expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-start')
+  })
+
+  it('triggers ptt-start regardless of key press order', () => {
+    setupGlobalHotkey(mockMainWindow as BrowserWindow)
+    const keydownCallback = mockListeners['keydown']
+
+    // Press Alt first, then Ctrl
+    keydownCallback({ keycode: UiohookKey.Alt })
+    keydownCallback({ keycode: UiohookKey.Ctrl })
+
     expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-start')
   })
 
@@ -67,7 +98,7 @@ describe('setupGlobalHotkey', () => {
     const keydownCallback = mockListeners['keydown']
     const keyupCallback = mockListeners['keyup']
 
-    // Press both keys to activate
+    // Activate
     keydownCallback({ keycode: UiohookKey.Ctrl })
     keydownCallback({ keycode: UiohookKey.Alt })
     expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-start')
@@ -83,7 +114,7 @@ describe('setupGlobalHotkey', () => {
     const keydownCallback = mockListeners['keydown']
     const keyupCallback = mockListeners['keyup']
 
-    // Press both keys to activate
+    // Activate
     keydownCallback({ keycode: UiohookKey.Ctrl })
     keydownCallback({ keycode: UiohookKey.Alt })
     expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-start')
@@ -94,12 +125,12 @@ describe('setupGlobalHotkey', () => {
     expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-stop')
   })
 
-  it('does not trigger ptt-stop when another key is released', () => {
+  it('does not trigger ptt-stop when an unrelated key is released', () => {
     setupGlobalHotkey(mockMainWindow as BrowserWindow)
     const keydownCallback = mockListeners['keydown']
     const keyupCallback = mockListeners['keyup']
 
-    // Press both keys to activate
+    // Activate
     keydownCallback({ keycode: UiohookKey.Ctrl })
     keydownCallback({ keycode: UiohookKey.Alt })
     expect(mockMainWindow.webContents.send).toHaveBeenCalledWith('ptt-start')
@@ -108,5 +139,20 @@ describe('setupGlobalHotkey', () => {
     // Release some other key (e.g. keycode 99)
     keyupCallback({ keycode: 99 })
     expect(mockMainWindow.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('does not trigger ptt-start more than once for held keys', () => {
+    setupGlobalHotkey(mockMainWindow as BrowserWindow)
+    const keydownCallback = mockListeners['keydown']
+
+    // Press both
+    keydownCallback({ keycode: UiohookKey.Ctrl })
+    keydownCallback({ keycode: UiohookKey.Alt })
+    expect(mockMainWindow.webContents.send).toHaveBeenCalledTimes(1)
+
+    // Simulate key repeat (OS sends repeated keydown events for held keys)
+    keydownCallback({ keycode: UiohookKey.Ctrl })
+    keydownCallback({ keycode: UiohookKey.Alt })
+    expect(mockMainWindow.webContents.send).toHaveBeenCalledTimes(1)
   })
 })

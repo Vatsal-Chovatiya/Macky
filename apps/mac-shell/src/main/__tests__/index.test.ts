@@ -15,14 +15,21 @@ vi.mock('electron', () => {
   }
 
   const mockWebContents = {
-    send: vi.fn()
+    send: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    openDevTools: vi.fn()
   }
 
   // Use constructible function instead of arrow function
   const mockBrowserWindow = vi.fn().mockImplementation(function (this: any) {
     this.webContents = mockWebContents
+    this.on = vi.fn()
+    this.show = vi.fn()
+    this.loadURL = vi.fn()
+    this.loadFile = vi.fn()
     return this
   })
+  ;(mockBrowserWindow as any).getAllWindows = vi.fn().mockReturnValue([])
 
   const mockApp = {
     whenReady: vi.fn().mockImplementation(() => {
@@ -32,16 +39,28 @@ vi.mock('electron', () => {
           return Promise.resolve()
         }
       }
-    })
+    }),
+    on: vi.fn()
   }
 
   return {
     app: mockApp,
+    shell: { openExternal: vi.fn() },
     BrowserWindow: mockBrowserWindow,
     ipcMain: mockIpcMain,
     mockWebContents: mockWebContents // Expose to verify IPC sends
   }
 })
+
+// Mock @electron-toolkit/utils
+vi.mock('@electron-toolkit/utils', () => ({
+  electronApp: { setAppUserModelId: vi.fn() },
+  optimizer: { watchWindowShortcuts: vi.fn() },
+  is: { dev: false }
+}))
+
+// Mock the icon asset import
+vi.mock('../../../resources/icon.png?asset', () => ({ default: 'mock-icon-path' }))
 
 // Mock helper submodules
 vi.mock('../hotkey', () => ({

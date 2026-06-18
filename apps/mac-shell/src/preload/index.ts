@@ -1,22 +1,14 @@
-import { contextBridge } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Custom APIs for renderer
-const api = {}
+// Expose a safe API to the React frontend
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Listen for hotkey events from the Main process
+  onPttStart: (callback: () => void) => ipcRenderer.on('ptt-start', callback),
+  onPttStop: (callback: () => void) => ipcRenderer.on('ptt-stop', callback),
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = api
-}
+  // Tell the Main process we are ready to process the request
+  processRequest: () => ipcRenderer.invoke('process-request'),
+
+  onContextReady: (callback: (data: { screenshot: string; bundleId: string }) => void) =>
+    ipcRenderer.on('context-ready', (_event, data) => callback(data))
+})

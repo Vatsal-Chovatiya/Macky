@@ -2,10 +2,15 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { setupGlobalHotkey } from './hotkey'
+import { captureLogicalScreenshot } from './capture'
+import { getActiveBundleId } from './context'
+
+let mainWindow: BrowserWindow
 
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
@@ -49,10 +54,36 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
   createWindow()
+
+  // Initialize the global hotkey listener (Cmd + Option + Space)
+  setupGlobalHotkey(mainWindow)
+
+  // Listen for the PTT stop event from the renderer
+  ipcMain.handle('process-request', async () => {
+    console.log('Hotkey released! Firing parallel tasks...')
+    const startTime = Date.now()
+
+    // 1. PARALLEL KICK-OFF
+    // Fire STT (handled in renderer), Screen Capture, and Context Fetch simultaneously
+    const [screenshotBase64, bundleId] = await Promise.all([
+      captureLogicalScreenshot(),
+      getActiveBundleId()
+    ])
+
+    console.log(`Parallel tasks finished in ${Date.now() - startTime}ms`)
+    console.log(`Active App: ${bundleId}`)
+
+    // 2. SEND TO RENDERER FOR ROUTING
+    // The renderer has the audio transcript from STT.
+    // We send the screenshot and bundleId back to the renderer so the Router can decide what to do.
+    mainWindow.webContents.send('context-ready', {
+      screenshot: screenshotBase64,
+      bundleId: bundleId
+    })
+
+    return { success: true }
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -69,6 +100,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
