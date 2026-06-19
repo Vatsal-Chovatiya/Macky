@@ -59,8 +59,6 @@ vi.mock('@electron-toolkit/utils', () => ({
   is: { dev: false }
 }))
 
-// Mock the icon asset import
-vi.mock('../../../resources/icon.png?asset', () => ({ default: 'mock-icon-path' }))
 
 // Mock helper submodules
 vi.mock('../hotkey', () => ({

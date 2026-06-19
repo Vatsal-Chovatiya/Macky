@@ -2,20 +2,17 @@ import { desktopCapturer, screen, systemPreferences } from 'electron'
 import sharp from 'sharp'
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
 
 export async function captureLogicalScreenshot(): Promise<string | null> {
   try {
-    // macOS Screen Recording permission check
-    if (process.platform === 'darwin') {
-      const hasScreenAccess = systemPreferences.getMediaAccessStatus('screen')
-      if (hasScreenAccess !== 'granted') {
-        console.warn(
-          `Screen Recording permission not granted (status: "${hasScreenAccess}"). ` +
-            'Please grant it in System Settings > Privacy & Security > Screen Recording, then restart the app.'
-        )
-        return null
-      }
+    // Screen Recording permission check (macOS-only app)
+    const hasScreenAccess = systemPreferences.getMediaAccessStatus('screen')
+    if (hasScreenAccess !== 'granted') {
+      console.warn(
+        `Screen Recording permission not granted (status: "${hasScreenAccess}"). ` +
+          'Please grant it in System Settings > Privacy & Security > Screen Recording, then restart the app.'
+      )
+      return null
     }
 
     // Find the display the cursor is currently on

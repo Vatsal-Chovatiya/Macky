@@ -10,13 +10,12 @@ export function setupGlobalHotkey(mainWindow: BrowserWindow) {
   // MAC OS PERMISSION CHECK
   // uiohook requires Accessibility permissions on macOS to read global keystrokes
 
-  if (process.platform === 'darwin') {
-    const isTrusted = systemPreferences.isTrustedAccessibilityClient(false)
-    if (!isTrusted) {
-      console.warn('Macky needs Accessibility permissions to listen to hotkeys!')
-      // This will prompt user to open System Settings
-      systemPreferences.isTrustedAccessibilityClient(true)
-    }
+  // Accessibility permission check (macOS-only app)
+  const isTrusted = systemPreferences.isTrustedAccessibilityClient(false)
+  if (!isTrusted) {
+    console.warn('Macky needs Accessibility permissions to listen to hotkeys!')
+    // This will prompt user to open System Settings
+    systemPreferences.isTrustedAccessibilityClient(true)
   }
 
   // 1. Listen for Key Down
