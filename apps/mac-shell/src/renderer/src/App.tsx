@@ -1,22 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 function App() {
   const [status, setStatus] = useState('Idle. Hold Ctrl + Option')
+  const [response, setResponse] = useState('')
   const [bundleId, setBundleId] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
-    window.electronAPI.onPttStart(() => setStatus('🔴 Listening...'))
+    // Setup microphone
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => { 
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder
+
+      mediaRecorder.ondataavailable = (e) => { 
+        if(e.data.size > 0) chunksRef.current.push(e.data)
+      } 
+    })
+
+    window.electronAPI.onPttStart(() => {
+      setStatus('🔴 Listening...')
+      setResponse('')
+      chunksRef.current = []
+      mediaRecorderRef.current?.start()
+    })
     
     window.electronAPI.onPttStop(async () => {
       setStatus('⏳ Processing parallel tasks...')
-      await window.electronAPI.processRequest()
+      mediaRecorderRef.current?.stop()
+       
+      // Wait a tiny bit for the last chunk to arrive
+      await new Promise(r => setTimeout(r, 100)) 
+      
+      // Combine chunks into a single WebM audio blob
+      const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
+      
+      // Convert Blob to ArrayBuffer to send over IPC
+      const arrayBuffer = await audioBlob.arrayBuffer()
+      
+      // Send audio to Main Process
+      await window.electronAPI.processRequest(arrayBuffer)
     })
 
-    // Listen for the Main process to finish the parallel tasks
-    window.electronAPI.onContextReady((data) => {
-      setBundleId(data.bundleId)
-      setStatus(`✅ Done! Active App: ${data.bundleId}`)
-      console.log('Received Screenshot Base64 length:', data.screenshot.length)
+      // 4. Listen for the AI response
+    window.electronAPI.onAiResponse((_event, text) => {
+      setResponse(text)
+      setStatus('✅ Done!')
     })
   }, [])
 

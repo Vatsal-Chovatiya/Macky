@@ -25,6 +25,8 @@
     "@Macky/ui": "*",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "dotenv": "^17.4.2",
+    "openai": "^6.44.0",
     "sharp": "^0.35.1",
     "uiohook-napi": "^1.5.5"
   },
