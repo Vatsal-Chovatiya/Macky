@@ -2,11 +2,7 @@ export {}
 
 declare global {
   interface Window {
-    electronAPI: {
-      onPttStart: (callback: () => void) => void
-      onPttStop: (callback: () => void) => void
-      processRequest: () => Promise<any>
-      onContextReady: (callback: (data: { screenshot: string; bundleId: string }) => void) => void
-    }
+    // electronAPI is already declared in src/preload/index.d.ts, which is included in tsconfig.web.json
   }
 }
+

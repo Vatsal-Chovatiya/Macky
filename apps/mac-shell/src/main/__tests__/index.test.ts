@@ -59,7 +59,6 @@ vi.mock('@electron-toolkit/utils', () => ({
   is: { dev: false }
 }))
 
-
 // Mock helper submodules
 vi.mock('../hotkey', () => ({
   setupGlobalHotkey: vi.fn()

@@ -37,10 +37,7 @@ export function setupGlobalHotkey(mainWindow: BrowserWindow) {
     if (e.keycode === UiohookKey.Alt) isOptionDown = false
 
     // If either key is released while hotkey was active, user finished speaking
-    if (
-      (e.keycode === UiohookKey.Ctrl || e.keycode === UiohookKey.Alt) &&
-      isHotKeyActive
-    ) {
+    if ((e.keycode === UiohookKey.Ctrl || e.keycode === UiohookKey.Alt) && isHotKeyActive) {
       isHotKeyActive = false
       // Tell the renderer to stop recording and process!
       mainWindow.webContents.send('ptt-stop')

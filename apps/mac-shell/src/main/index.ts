@@ -4,6 +4,12 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupGlobalHotkey } from './hotkey'
 import { captureLogicalScreenshot } from './capture'
 import { getActiveBundleId } from './context'
+import { transcribeAudio } from './ai/stt'
+import { askVisionLLM } from './ai/vision'
+import { config } from 'dotenv'
+
+// Load .env at the very start — all modules inherit from process.env
+config()
 
 let mainWindow: BrowserWindow
 
@@ -58,19 +64,45 @@ app.whenReady().then(() => {
   setupGlobalHotkey(mainWindow)
 
   // Listen for the PTT stop event from the renderer
-  ipcMain.handle('process-request', async () => {
+  ipcMain.handle('process-request', async (_event, audioArrayBuffer) => {
     console.log('Hotkey released! Firing parallel tasks...')
     const startTime = Date.now()
 
+    // Convert ArrayBuffer back to Node Buffer
+    const audioBuffer = Buffer.from(audioArrayBuffer)
+
     // 1. PARALLEL KICK-OFF
     // Fire STT (handled in renderer), Screen Capture, and Context Fetch simultaneously
-    const [screenshotBase64, bundleId] = await Promise.all([
+    const [transcript, screenshotBase64, bundleId] = await Promise.all([
+      transcribeAudio(audioBuffer),
       captureLogicalScreenshot(),
       getActiveBundleId()
     ])
 
     console.log(`Parallel tasks finished in ${Date.now() - startTime}ms`)
+    console.log(`Transcript: "${transcript}"`)
     console.log(`Active App: ${bundleId}`)
+    // 2. THE SMART ROUTER (Sighted vs Blind)
+    // TODO:
+    // For now, we will just force the "Ask" Lane (Vision) to test it.
+
+    if (screenshotBase64 && transcript.trim()) {
+      console.log('Sending the screenshot to Vision LLM...')
+      const aiResponse = await askVisionLLM(transcript, screenshotBase64)
+      console.log(`AI answer: ${aiResponse}`)
+
+      // Send the answer back to React
+      mainWindow.webContents.send('ai-response', aiResponse)
+    } else if (!transcript.trim()) {
+      console.warn('Skipping Vision LLM: no transcript (user did not speak or audio was empty)')
+      mainWindow.webContents.send(
+        'ai-response',
+        'No speech detected. Please hold the hotkey while speaking.'
+      )
+    } else {
+      console.warn('Skipping Vision LLM: no screenshot available')
+      mainWindow.webContents.send('ai-response', 'Could not capture the screen.')
+    }
 
     // 2. SEND TO RENDERER FOR ROUTING
     // The renderer has the audio transcript from STT.
@@ -89,4 +121,3 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
-
