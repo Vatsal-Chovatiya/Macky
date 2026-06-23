@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { createOverlayWindow } from './overlay'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupGlobalHotkey } from './hotkey'
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+  createOverlayWindow()
 
   // Initialize the global hotkey listener (Cmd + Option + Space)
   setupGlobalHotkey(mainWindow)

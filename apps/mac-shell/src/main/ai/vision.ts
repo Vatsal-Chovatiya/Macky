@@ -35,7 +35,7 @@ export async function askVisionLLM(prompt: string, screenshotBase64: string): Pr
   }
 
   try {
-    console.log('Sending request to NVIDIA Nemotron...')
+    console.log('Sending request to LLM...')
 
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
@@ -48,18 +48,18 @@ export async function askVisionLLM(prompt: string, screenshotBase64: string): Pr
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(` NVIDIA API Error (${response.status}):`, errorText)
+      console.error(` LLM API Error (${response.status}):`, errorText)
       return `Vision API returned an error: ${response.status}`
     }
 
     const data = await response.json()
 
     const aiText = data.choices?.[0]?.message?.content || 'I could not analyze the screen.'
-    console.log(' NVIDIA Response received.')
+    console.log(' LLM Response received.')
 
     return aiText
   } catch (error) {
-    console.error(' Network error calling NVIDIA:', error)
+    console.error(' Network error calling LLM:', error)
     return 'I encountered a network error analyzing the screen.'
   }
 }
