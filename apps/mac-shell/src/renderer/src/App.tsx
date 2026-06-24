@@ -1,6 +1,36 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import OverlayCanvas from './components/OverlayCanvas'
 
 function App() {
+  // Check if this window instance is the overlay (via query param set by the main process)
+  const params = new URLSearchParams(window.location.search)
+  const isOverlay = params.get('window') === 'overlay'
+
+  if (isOverlay) {
+    // Override default body/root styles from main.css so the window stays transparent
+    // and the overlay can paint over the full screen.
+    document.documentElement.style.background = 'transparent'
+    document.body.style.background = 'transparent'
+    document.body.style.backgroundImage = 'none'
+    document.body.style.display = 'block'
+    document.body.style.overflow = 'hidden'
+    document.body.style.margin = '0'
+    document.body.style.height = '100vh'
+    const root = document.getElementById('root')
+    if (root) {
+      root.style.margin = '0'
+      root.style.display = 'block'
+      root.style.width = '100vw'
+      root.style.height = '100vh'
+      root.style.pointerEvents = 'none'
+    }
+    return <OverlayCanvas />
+  }
+
+  return <MainWindow />
+}
+
+function MainWindow() {
   const [status, setStatus] = useState('Idle. Hold Ctrl + Option')
   const [response, setResponse] = useState('')
   const [bundleId, setBundleId] = useState('')

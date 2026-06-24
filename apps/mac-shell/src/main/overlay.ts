@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
+import { is } from '@electron-toolkit/utils'
 
 let overlayWindow: BrowserWindow | null = null
 
@@ -32,9 +33,9 @@ export function createOverlayWindow() {
 
   overlayWindow.setIgnoreMouseEvents(true, { forward: true })
 
-  // Load the React app, but pass a query param so React knows to render the Overlay instead of the Settings UI
-  if (process.env.VITE_DEV_SERVER_URL) {
-    overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?window=overlay`)
+  // Load the React app with a query param so React knows to render the Overlay instead of the Settings UI
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    overlayWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?window=overlay`)
   } else {
     overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), {
       query: { window: 'overlay' }

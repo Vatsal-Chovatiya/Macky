@@ -34,5 +34,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text)
     ipcRenderer.on('ai-response', handler)
     return () => ipcRenderer.removeListener('ai-response', handler)
+  },
+
+  // Listen for draw instructions sent to the Overlay Window
+  onDrawInstructions: (callback: (event: unknown, data: unknown[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: unknown[]) => callback(_event, data)
+    ipcRenderer.on('draw-instructions', handler)
+    return () => ipcRenderer.removeListener('draw-instructions', handler)
   }
 })

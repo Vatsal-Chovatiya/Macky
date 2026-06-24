@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { createOverlayWindow } from './overlay'
+import { createOverlayWindow, getOverlayWindow } from './overlay'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupGlobalHotkey } from './hotkey'
@@ -7,6 +7,7 @@ import { captureLogicalScreenshot } from './capture'
 import { getActiveBundleId } from './context'
 import { transcribeAudio } from './ai/stt'
 import { askVisionLLM } from './ai/vision'
+import { parseAIResponse, denormalizeInstructions } from './ai/parser'
 import { config } from 'dotenv'
 
 // Load .env at the very start — all modules inherit from process.env
@@ -75,7 +76,7 @@ app.whenReady().then(() => {
 
     // 1. PARALLEL KICK-OFF
     // Fire STT (handled in renderer), Screen Capture, and Context Fetch simultaneously
-    const [transcript, screenshotBase64, bundleId] = await Promise.all([
+    const [transcript, capture, bundleId] = await Promise.all([
       transcribeAudio(audioBuffer),
       captureLogicalScreenshot(),
       getActiveBundleId()
@@ -84,17 +85,51 @@ app.whenReady().then(() => {
     console.log(`Parallel tasks finished in ${Date.now() - startTime}ms`)
     console.log(`Transcript: "${transcript}"`)
     console.log(`Active App: ${bundleId}`)
+    console.log(
+      `Capture: ${capture ? `${capture.logicalWidth}x${capture.logicalHeight}, cursor=${capture.cursor ? `(${capture.cursor.x},${capture.cursor.y})` : 'none'}` : 'null'}`
+    )
     // 2. THE SMART ROUTER (Sighted vs Blind)
     // TODO:
     // For now, we will just force the "Ask" Lane (Vision) to test it.
 
-    if (screenshotBase64 && transcript.trim()) {
-      console.log('Sending the screenshot to Vision LLM...')
-      const aiResponse = await askVisionLLM(transcript, screenshotBase64)
-      console.log(`AI answer: ${aiResponse}`)
+    if (capture && transcript.trim()) {
+      console.log('🧠 Sending the screenshot to Vision LLM...')
+      // Pass the exact image pixel dimensions so the model answers in that pixel
+      // space; capture.cursor is already in that same image-pixel space.
+      const rawAiResponse = await askVisionLLM(transcript, capture.base64, {
+        imageWidth: capture.imageWidth,
+        imageHeight: capture.imageHeight,
+        cursor: capture.cursor
+      })
 
-      // Send the answer back to React
-      mainWindow.webContents.send('ai-response', aiResponse)
+      // Parse out drawing instructions and strip tags from spoken text
+      const { cleanText, instructions } = parseAIResponse(rawAiResponse)
+
+      // Convert the model's image-pixel coordinates into overlay pixels.
+      // The model returns coords in the JPEG's pixel space (e.g. 0–1280);
+      // we scale proportionally to the logical display (e.g. 0–1440).
+      const pixelInstructions = denormalizeInstructions(
+        instructions,
+        capture.imageWidth,
+        capture.imageHeight,
+        capture.logicalWidth,
+        capture.logicalHeight
+      )
+
+      console.log(` Clean Text for TTS: ${cleanText}`)
+      console.log(` Drawing Instructions (px):`, pixelInstructions)
+      // Send clean text to Main Window (for UI bubble / TTS)
+      mainWindow.webContents.send('ai-response', cleanText)
+
+      // Send shapes to Overlay Window (for drawing on screen)
+      const overlay = getOverlayWindow()
+      if (overlay && !overlay.isDestroyed() && pixelInstructions.length > 0) {
+        // Align the overlay exactly with the display that was captured so the
+        // image's pixel coordinates map 1:1 onto the overlay. Without this, a
+        // capture on a non-primary display would draw at the wrong origin.
+        overlay.setBounds(capture.displayBounds)
+        overlay.webContents.send('draw-instructions', pixelInstructions)
+      }
     } else if (!transcript.trim()) {
       console.warn('Skipping Vision LLM: no transcript (user did not speak or audio was empty)')
       mainWindow.webContents.send(
@@ -110,7 +145,7 @@ app.whenReady().then(() => {
     // The renderer has the audio transcript from STT.
     // We send the screenshot and bundleId back to the renderer so the Router can decide what to do.
     mainWindow.webContents.send('context-ready', {
-      screenshot: screenshotBase64,
+      screenshot: capture?.base64 ?? null,
       bundleId: bundleId
     })
 

@@ -72,6 +72,11 @@ vi.mock('../context', () => ({
   getActiveBundleId: vi.fn()
 }))
 
+vi.mock('../overlay', () => ({
+  createOverlayWindow: vi.fn(),
+  getOverlayWindow: vi.fn().mockReturnValue(null)
+}))
+
 // Import after mocking
 import { setupGlobalHotkey } from '../hotkey'
 import { captureLogicalScreenshot } from '../capture'
@@ -110,12 +115,20 @@ describe('main index entry point', () => {
     expect(registeredIpcHandler).toBeTypeOf('function')
 
     // Mock captured context results
-    vi.mocked(captureLogicalScreenshot).mockResolvedValue('mock-screenshot-base64')
+    vi.mocked(captureLogicalScreenshot).mockResolvedValue({
+      base64: 'mock-screenshot-base64',
+      imageWidth: 1280,
+      imageHeight: 800,
+      logicalWidth: 1440,
+      logicalHeight: 900,
+      cursor: { x: 291, y: 600 },
+      displayBounds: { x: 0, y: 0, width: 1440, height: 900 }
+    })
     vi.mocked(getActiveBundleId).mockResolvedValue('com.example.app')
 
     // Call the IPC handler
     const event = {}
-    const audioBlob = {} // dummy blob
+    const audioBlob = new ArrayBuffer(0) // dummy empty audio buffer
     const result = await registeredIpcHandler!(event, audioBlob)
 
     // Verify it returns success
